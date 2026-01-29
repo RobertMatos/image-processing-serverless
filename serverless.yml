@@ -1,0 +1,61 @@
+service: image-processing
+
+frameworkVersion: '^3.0.0'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: dev
+
+  environment:
+    ORIGINAL_BUCKET: image-processing-originals-dev-0
+    PROCESSED_BUCKET: image-processing-processed-dev-0
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+          Resource:
+            - arn:aws:s3:::image-processing-originals-dev-0/*
+            - arn:aws:s3:::image-processing-processed-dev-0/*
+
+functions:
+  health:
+    handler: src/api/health.handler
+    events:
+      - httpApi:
+          path: /health
+          method: GET
+
+  process:
+    handler: src/api/process.handler
+    events:
+      - httpApi:
+          path: /process
+          method: POST
+
+  processor:
+    handler: src/processor/imageProcessor.handler
+    events:
+      - s3:
+          bucket: image-processing-originals-dev-0
+          event: s3:ObjectCreated:*
+          existing: true
+
+plugins:
+  - serverless-esbuild
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node18
+    platform: node
+    external:
+      - sharp
+      - '@aws-sdk/s3-request-presigner'
